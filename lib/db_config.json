@@ -1,0 +1,7 @@
+{
+    "host": "localhost",
+    "port": 5432,
+    "user": "readandwrite",
+    "password": "123456789",
+    "database": "personal_website"
+}
