@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Pool } from 'pg'
 
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: parseInt(process.env.DB_PORT || '5432'),
+  host: 'ep-green-credit-ads0h4ly-pooler.c-2.us-east-1.aws.neon.tech',
+  port: 5432,
+  user: 'neondb_owner',
+  password: 'npg_3IuaBKM6OqxP',
+  database: 'neondb',
+  ssl: { rejectUnauthorized: false }, // Required for Neon
 })
 
 interface ReorderPageProps {

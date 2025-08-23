@@ -12,7 +12,7 @@ const RATE_LIMIT_COUNT = 5; // Max 5 attempts
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: "postgresql://neondb_owner:npg_3IuaBKM6OqxP@ep-green-credit-ads0h4ly-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require",
 });
 
 const authOptions: AuthOptions = {
@@ -74,7 +74,7 @@ const authOptions: AuthOptions = {
     // Use JSON Web Tokens for session management
     strategy: "jwt",
   },
-  secret: process.env.AUTH_SECRET,
+  secret: "ZTlkpvVyW/4yanDLpriipPISXUu8y0NH6T8eQhP1UwM=",
   pages: {
     // Redirect users to our custom login page
     signIn: '/login',
