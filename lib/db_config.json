@@ -1,7 +1,0 @@
-{
-    "host": "ep-green-credit-ads0h4ly-pooler.c-2.us-east-1.aws.neon.tech",
-    "port": 5432,
-    "user": "neondb_owner",
-    "password": "npg_3IuaBKM6OqxP",
-    "database": "neondb"
-}
