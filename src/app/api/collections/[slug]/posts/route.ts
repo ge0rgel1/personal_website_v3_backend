@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Pool } from 'pg'
-
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: parseInt(process.env.DB_PORT || '5432'),
-})
+import pool from '../../../../../../lib/db'
 
 interface CollectionPostsPageProps {
   params: Promise<{
@@ -30,6 +22,16 @@ export async function POST(
       )
     }
 
+    // Convert postId to integer to match database type
+    const postIdInt = parseInt(postId)
+    
+    if (isNaN(postIdInt)) {
+      return NextResponse.json(
+        { success: false, error: 'Post ID must be a valid number' },
+        { status: 400 }
+      )
+    }
+
     // First, get the collection ID from the slug
     const collectionQuery = 'SELECT id FROM collections WHERE slug = $1'
     const collectionResult = await pool.query(collectionQuery, [slug])
@@ -43,9 +45,20 @@ export async function POST(
 
     const collectionId = collectionResult.rows[0].id
 
+    // Check if the post exists
+    const postCheckQuery = 'SELECT id FROM posts WHERE id = $1'
+    const postCheckResult = await pool.query(postCheckQuery, [postIdInt])
+
+    if (postCheckResult.rows.length === 0) {
+      return NextResponse.json(
+        { success: false, error: `Post with ID ${postIdInt} does not exist` },
+        { status: 404 }
+      )
+    }
+
     // Check if the post is already in the collection
     const existingQuery = 'SELECT collection_id, post_id FROM collection_posts WHERE collection_id = $1 AND post_id = $2'
-    const existingResult = await pool.query(existingQuery, [collectionId, postId])
+    const existingResult = await pool.query(existingQuery, [collectionId, postIdInt])
 
     if (existingResult.rows.length > 0) {
       return NextResponse.json(
@@ -61,7 +74,7 @@ export async function POST(
 
     // Add the post to the collection
     const insertQuery = 'INSERT INTO collection_posts (collection_id, post_id, position) VALUES ($1, $2, $3)'
-    await pool.query(insertQuery, [collectionId, postId, nextPosition])
+    await pool.query(insertQuery, [collectionId, postIdInt, nextPosition])
 
     return NextResponse.json({
       success: true,
