@@ -22,7 +22,7 @@ interface Review {
 // GET /api/reviews - Get all reviews with tags
 export async function GET(request: NextRequest) {
   try {
-    console.log('Reviews API: Starting request...')
+    // console.log('Reviews API: Starting request...')
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'created_at'
     const sortOrder = searchParams.get('sortOrder') || 'desc'
 
-    console.log('Reviews API: Parameters:', { page, limit, search, tag, type, sortBy, sortOrder })
+    // console.log('Reviews API: Parameters:', { page, limit, search, tag, type, sortBy, sortOrder })
 
     const offset = (page - 1) * limit
 
@@ -80,9 +80,9 @@ export async function GET(request: NextRequest) {
       FROM reviews r
       ${whereClause}
     `
-    console.log('Reviews API: Count query:', countQuery, 'Params:', queryParams)
+    // console.log('Reviews API: Count query:', countQuery, 'Params:', queryParams)
     const countResult = await pool.query(countQuery, queryParams)
-    console.log('Reviews API: Count result:', countResult.rows)
+    // console.log('Reviews API: Count result:', countResult.rows)
     const totalItems = parseInt(countResult.rows[0].total)
     const totalPages = Math.ceil(totalItems / limit)
 

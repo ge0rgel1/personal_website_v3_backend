@@ -186,7 +186,7 @@ export default function CollectionDetailPage({ params }: CollectionPageProps) {
   }
 
   const handleDragStart = (e: React.DragEvent, post: Post) => {
-    console.log('Drag started for:', post.title)
+    // console.log('Drag started for:', post.title)
     setDraggedPost(post)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', post.id.toString())
@@ -212,7 +212,7 @@ export default function CollectionDetailPage({ params }: CollectionPageProps) {
   const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault()
     e.stopPropagation()
-    console.log('Drop at index:', dropIndex)
+    // console.log('Drop at index:', dropIndex)
     setDragOverIndex(null)
     
     if (!draggedPost) {
@@ -221,7 +221,7 @@ export default function CollectionDetailPage({ params }: CollectionPageProps) {
     }
     
     const dragIndex = posts.findIndex(p => p.id === draggedPost.id)
-    console.log('Drag from index:', dragIndex, 'to index:', dropIndex)
+    // console.log('Drag from index:', dragIndex, 'to index:', dropIndex)
     
     if (dragIndex === dropIndex) {
       setDraggedPost(null)
@@ -289,7 +289,7 @@ export default function CollectionDetailPage({ params }: CollectionPageProps) {
       }
       
       const data = await response.json()
-      console.log('Posts API data:', data)
+      // console.log('Posts API data:', data)
       
       // Backend posts API returns { posts: [...] } format
       if (data.posts) {

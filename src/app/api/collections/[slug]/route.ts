@@ -97,12 +97,12 @@ export async function PUT(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    console.log('PUT request received for collection update')
+    // console.log('PUT request received for collection update')
     const { slug } = await params
-    console.log('Collection slug:', slug)
+    // console.log('Collection slug:', slug)
 
     const updateData: CollectionUpdateData = await request.json()
-    console.log('Update data:', updateData)
+    // console.log('Update data:', updateData)
     
     // Validate required fields
     if (!updateData.title?.trim() || !updateData.slug?.trim()) {
