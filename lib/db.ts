@@ -1,16 +1,14 @@
 import { Pool } from 'pg';
 
-// Create a connection pool using environment variables
+// Create a connection pool using Neon database URL from environment variables
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  ssl: true, // SSL for Neon
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: {
+    rejectUnauthorized: false, // Required for Neon connections
+  },
   max: 20, // Maximum number of connections in the pool
   idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
-  connectionTimeoutMillis: 2000, // Return error after 2 seconds if connection could not be established
+  connectionTimeoutMillis: 10000, // Increased timeout for cloud connections
 });
 
 export default pool;
