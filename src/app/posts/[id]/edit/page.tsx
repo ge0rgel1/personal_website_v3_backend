@@ -1270,7 +1270,7 @@ export default function EditPostPage() {
         }, 0)
       }
     } else {
-      // Selection exists - unindent all selected lines
+      // Selection exists - unindent all selected lines and renumber ordered lists
       const beforeSelection = value.substring(0, selectionStart)
       const afterSelection = value.substring(selectionEnd)
       
@@ -1285,9 +1285,29 @@ export default function EditPostPage() {
       const fullSelectedText = value.substring(firstLineStart, actualLastLineEnd)
       const lines = fullSelectedText.split('\n')
       
-      // Remove up to 4 spaces from each line
+      // Find the highest number in the parent list context to continue numbering
+      let nextNumber = 1
+      const beforeLines = beforeSelection.split('\n')
+      for (let i = beforeLines.length - 1; i >= 0; i--) {
+        const line = beforeLines[i]
+        // Look for ordered list items at the same indentation level (no extra spaces after unindenting)
+        const listMatch = line.match(/^(\s*)(\d+)\.\s+/)
+        if (listMatch) {
+          const [, spaces] = listMatch
+          // After unindenting, we want to match items that will be at the same level
+          // We need to check if this is at the target indentation level
+          const targetIndent = lines[0] ? lines[0].search(/\S/) - 4 : 0 // Remove 4 spaces from first line
+          if (spaces.length === Math.max(0, targetIndent)) {
+            nextNumber = parseInt(listMatch[2]) + 1
+            break
+          }
+        }
+      }
+      
+      // Remove up to 4 spaces from each line and renumber ordered lists
       let totalRemovedSpaces = 0
       let firstLineRemovedSpaces = 0
+      let currentNumber = nextNumber
       
       const unindentedLines = lines.map((line, index) => {
         // Count leading spaces (up to 4)
@@ -1305,7 +1325,19 @@ export default function EditPostPage() {
         }
         totalRemovedSpaces += spacesToRemove
         
-        return line.substring(spacesToRemove)
+        const unindentedLine = line.substring(spacesToRemove)
+        
+        // Check if this is an ordered list item after unindenting
+        const orderedListMatch = unindentedLine.match(/^(\s*)(\d+)\.\s+(.*)$/)
+        if (orderedListMatch) {
+          const [, spaces, , content] = orderedListMatch
+          // Renumber to continue the parent list sequence
+          const renumberedLine = `${spaces}${currentNumber}. ${content}`
+          currentNumber++
+          return renumberedLine
+        }
+        
+        return unindentedLine
       })
       
       const unindentedText = unindentedLines.join('\n')
