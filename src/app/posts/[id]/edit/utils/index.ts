@@ -20,3 +20,8 @@ export {
   type TextPosition,
   type FormattingContext
 } from './textFormatting'
+
+export {
+  indentText,
+  unindentText
+} from './indentationUtils'

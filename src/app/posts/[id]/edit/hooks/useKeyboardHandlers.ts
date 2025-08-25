@@ -37,6 +37,8 @@ interface KeyboardHandlersParams {
   handleUndo?: () => void
   handleRedo?: () => void
   handleSave?: () => void
+  handleTab?: () => void
+  handleShiftTab?: () => void
 }
 
 export const useKeyboardHandlers = (params: KeyboardHandlersParams) => {
@@ -47,7 +49,7 @@ export const useKeyboardHandlers = (params: KeyboardHandlersParams) => {
     linkText, linkUrl, insertLink, cancelLink,
     footnoteText, insertFootnote, cancelFootnote,
     selectedColor, applyColor, cancelColor,
-    applyBold, applyItalics, handleUndo, handleRedo, handleSave
+    applyBold, applyItalics, handleUndo, handleRedo, handleSave, handleTab, handleShiftTab
   } = params
 
   // Handle keyboard shortcuts in image modal
@@ -118,7 +120,24 @@ export const useKeyboardHandlers = (params: KeyboardHandlersParams) => {
 
   // Handle global keyboard shortcuts for main editor
   const handleMainEditorKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Only handle shortcuts when Ctrl/Cmd is pressed
+    // Handle Tab indentation (without Ctrl/Cmd)
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      if (e.shiftKey) {
+        // Shift+Tab = Unindent (remove 4 spaces)
+        if (handleShiftTab) {
+          handleShiftTab()
+        }
+      } else {
+        // Tab = Indent (add 4 spaces)
+        if (handleTab) {
+          handleTab()
+        }
+      }
+      return
+    }
+
+    // Only handle other shortcuts when Ctrl/Cmd is pressed
     if (e.ctrlKey || e.metaKey) {
       switch (e.key.toLowerCase()) {
         case 'b':
@@ -167,7 +186,7 @@ export const useKeyboardHandlers = (params: KeyboardHandlersParams) => {
           break
       }
     }
-  }, [applyBold, applyItalics, handleUndo, handleRedo, handleSave])
+  }, [applyBold, applyItalics, handleUndo, handleRedo, handleSave, handleTab, handleShiftTab])
 
   return {
     handleImageModalKeyDown,

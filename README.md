@@ -34,3 +34,41 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+# Features
+
+- General
+  - Search and Filter
+  - Login with username + password + IP-based Rate Limiting
+  - Deployment: 
+    - Cloud: Vercel + Cloudflare R2 + Neon
+    - Local: Cloudflare Tunnel + Cloudflare R2 + Postgres
+
+- Post
+  - Visitor Counter
+  - Basic CRUD
+  - Import from Markdown
+  - Markdown + Latex Full Rendering
+  - Text Operations with Hotkey:
+    - Redo/Undo
+    - Heading
+    - Italics
+    - Strikethrough
+    - List(indexed/un-indexed)
+    - Quotation
+    - Code
+    - Link
+    - Table
+    - Text Color
+    - Foot Note
+  - Image Insertion
+
+- Projects
+  - CRUD
+- Reviews
+  - CRUD
+- Collections:
+  - CRUD + Ordering
+- Tags:
+  - CURD + Color Management

@@ -49,6 +49,8 @@ import {
   applyQuotation as applyQuotationUtility,
   applyCode as applyCodeUtility,
   applyStrikethrough as applyStrikethroughUtility,
+  indentText,
+  unindentText,
   type FormattingContext
 } from './utils'
 
@@ -1156,6 +1158,176 @@ export default function EditPostPage() {
     }
   }
 
+  // Tab indentation functions
+  const handleTab = useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    
+    const { value, selectionStart, selectionEnd } = textarea
+    
+    if (selectionStart === selectionEnd) {
+      // No selection - just add 4 spaces at cursor position
+      const newValue = 
+        value.substring(0, selectionStart) + 
+        '    ' + 
+        value.substring(selectionStart)
+      
+      setMarkdownContent(newValue)
+      
+      // Move cursor after the inserted spaces
+      setTimeout(() => {
+        textarea.setSelectionRange(selectionStart + 4, selectionStart + 4)
+      }, 0)
+    } else {
+      // Selection exists - indent all selected lines and renumber ordered lists
+      const beforeSelection = value.substring(0, selectionStart)
+      const selectedText = value.substring(selectionStart, selectionEnd)
+      const afterSelection = value.substring(selectionEnd)
+      
+      // Find the start of the first selected line
+      const firstLineStart = beforeSelection.lastIndexOf('\n') + 1
+      
+      // Find the end of the last selected line  
+      const lastLineEnd = selectionEnd + afterSelection.indexOf('\n')
+      const actualLastLineEnd = lastLineEnd === selectionEnd - 1 ? value.length : lastLineEnd
+      
+      // Get the full text of all lines that contain the selection
+      const fullSelectedText = value.substring(firstLineStart, actualLastLineEnd)
+      const lines = fullSelectedText.split('\n')
+      
+      // Add 4 spaces to each line and renumber ordered lists
+      let currentNumber = 1
+      
+      const indentedLines = lines.map((line) => {
+        const indentedLine = '    ' + line
+        
+        // Check if this is an ordered list item after indentation
+        const orderedListMatch = indentedLine.match(/^(\s*)(\d+)\.\s+(.*)$/)
+        if (orderedListMatch) {
+          const [, spaces, , content] = orderedListMatch
+          // Renumber starting from 1 for nested ordered lists
+          const renumberedLine = `${spaces}${currentNumber}. ${content}`
+          currentNumber++
+          return renumberedLine
+        }
+        
+        return indentedLine
+      })
+      
+      const indentedText = indentedLines.join('\n')
+      
+      // Build the new content
+      const newValue = 
+        value.substring(0, firstLineStart) + 
+        indentedText + 
+        value.substring(actualLastLineEnd)
+      
+      setMarkdownContent(newValue)
+      
+      // Calculate new selection positions
+      const spacesAdded = lines.length * 4
+      const newSelectionStart = selectionStart + 4 // First line gets 4 spaces
+      const newSelectionEnd = selectionEnd + spacesAdded
+      
+      setTimeout(() => {
+        textarea.setSelectionRange(newSelectionStart, newSelectionEnd)
+      }, 0)
+    }
+  }, [])
+
+  const handleShiftTab = useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    
+    const { value, selectionStart, selectionEnd } = textarea
+    
+    if (selectionStart === selectionEnd) {
+      // No selection - remove up to 4 spaces before cursor
+      const beforeCursor = value.substring(0, selectionStart)
+      const afterCursor = value.substring(selectionStart)
+      
+      // Count how many spaces to remove (up to 4, from the end of beforeCursor)
+      let spacesToRemove = 0
+      for (let i = beforeCursor.length - 1; i >= 0 && spacesToRemove < 4; i--) {
+        if (beforeCursor[i] === ' ') {
+          spacesToRemove++
+        } else {
+          break
+        }
+      }
+      
+      if (spacesToRemove > 0) {
+        const newValue = 
+          beforeCursor.substring(0, beforeCursor.length - spacesToRemove) + 
+          afterCursor
+        
+        setMarkdownContent(newValue)
+        
+        // Move cursor back by the number of removed spaces
+        setTimeout(() => {
+          const newCursorPos = selectionStart - spacesToRemove
+          textarea.setSelectionRange(newCursorPos, newCursorPos)
+        }, 0)
+      }
+    } else {
+      // Selection exists - unindent all selected lines
+      const beforeSelection = value.substring(0, selectionStart)
+      const afterSelection = value.substring(selectionEnd)
+      
+      // Find the start of the first selected line
+      const firstLineStart = beforeSelection.lastIndexOf('\n') + 1
+      
+      // Find the end of the last selected line
+      const lastLineEnd = selectionEnd + afterSelection.indexOf('\n')
+      const actualLastLineEnd = lastLineEnd === selectionEnd - 1 ? value.length : lastLineEnd
+      
+      // Get the full text of all lines that contain the selection
+      const fullSelectedText = value.substring(firstLineStart, actualLastLineEnd)
+      const lines = fullSelectedText.split('\n')
+      
+      // Remove up to 4 spaces from each line
+      let totalRemovedSpaces = 0
+      let firstLineRemovedSpaces = 0
+      
+      const unindentedLines = lines.map((line, index) => {
+        // Count leading spaces (up to 4)
+        let spacesToRemove = 0
+        for (let i = 0; i < Math.min(4, line.length); i++) {
+          if (line[i] === ' ') {
+            spacesToRemove++
+          } else {
+            break
+          }
+        }
+        
+        if (index === 0) {
+          firstLineRemovedSpaces = spacesToRemove
+        }
+        totalRemovedSpaces += spacesToRemove
+        
+        return line.substring(spacesToRemove)
+      })
+      
+      const unindentedText = unindentedLines.join('\n')
+      
+      // Build the new content
+      const newValue = 
+        value.substring(0, firstLineStart) + 
+        unindentedText + 
+        value.substring(actualLastLineEnd)
+      
+      setMarkdownContent(newValue)
+      
+      // Calculate new cursor positions
+      const newSelectionStart = Math.max(firstLineStart, selectionStart - firstLineRemovedSpaces)
+      const newSelectionEnd = selectionEnd - totalRemovedSpaces
+      
+      setTimeout(() => {
+        textarea.setSelectionRange(newSelectionStart, newSelectionEnd)
+      }, 0)
+    }
+  }, [])
+
   // Initialize additional keyboard handlers for color modal and main editor
   const {
     handleColorModalKeyDown: handleColorModalKeyDownHook,
@@ -1183,7 +1355,9 @@ export default function EditPostPage() {
     applyItalics,
     handleUndo,
     handleRedo,
-    handleSave
+    handleSave,
+    handleTab,
+    handleShiftTab
   })
 
   // Tag management functions
@@ -2505,6 +2679,14 @@ export default function EditPostPage() {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800 mb-3">Editor Actions</h3>
                   <div className="space-y-2">
+                    <div className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded">
+                      <span className="text-gray-700">Indent text (add 4 spaces)</span>
+                      <kbd className="px-2 py-1 bg-gray-200 rounded text-sm font-mono">Tab</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded">
+                      <span className="text-gray-700">Unindent text (remove 4 spaces)</span>
+                      <kbd className="px-2 py-1 bg-gray-200 rounded text-sm font-mono">Shift+Tab</kbd>
+                    </div>
                     <div className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded">
                       <span className="text-gray-700">Undo</span>
                       <kbd className="px-2 py-1 bg-gray-200 rounded text-sm font-mono">Ctrl+Z</kbd>
