@@ -8,6 +8,6 @@ export * from './Api'
 
 // Re-export commonly used types for convenience
 export type { Post, Tag, PostStatus, PostMetadata } from './Post'
-export type { HistoryState, SaveStatus, EditorState } from './Editor'
+export type { SaveStatus, EditorState } from './Editor'
 export type { ImageUploadResult, ImageUploadState } from './Image'
 export type { ApiResponse, GetPostResponse, UpdatePostResponse } from './Api'
