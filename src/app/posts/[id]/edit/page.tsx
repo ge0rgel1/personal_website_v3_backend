@@ -17,7 +17,6 @@ import type {
   Post,
   Tag,
   PostMetadata,
-  HistoryState,
   SaveStatus,
   EditorState,
   LinkModalState,
@@ -134,48 +133,22 @@ export default function EditPostPage() {
   const [filteredTags, setFilteredTags] = useState<Tag[]>([])
   const [showTagDropdown, setShowTagDropdown] = useState(false)
   const [isCreatingTag, setIsCreatingTag] = useState(false)
-  
-  // History model (simple & correct)
-  const [hist, setHist] = useState<HistoryState>({ stack: [''], index: 0 });
 
   // Textarea ref for cursor position
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const configureModalRef = useRef<HTMLDivElement>(null)
   const helpModalRef = useRef<HTMLDivElement>(null)
   const configFileInputRef = useRef<HTMLInputElement>(null)
-  
-  // Timer type (works in browser TS)
-  const historyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Helpers
-  const pushHistory = useCallback((content: string) => {
-    setHist(prev => {
-      // no-op if identical to current entry
-      if (prev.stack[prev.index] === content) return prev;
+  // Helpers - Content change handler for typing
+  const handleContentChange = (newContent: string) => {
+    setMarkdownContent(newContent);
+  };
 
-      // drop any redo branch
-      const base = prev.stack.slice(0, prev.index + 1);
-      base.push(content);
-
-      // cap at EDITOR_CONFIG.MAX_HISTORY_SIZE, keep the most recent
-      const overflow = Math.max(0, base.length - EDITOR_CONFIG.MAX_HISTORY_SIZE);
-      const stack = overflow ? base.slice(overflow) : base;
-
-      // move pointer to the last entry
-      const index = stack.length - 1;
-      return { stack, index };
-    });
-  }, []);
-
-  const undoOnce = useCallback(() => {
-    setHist(prev => (prev.index > 0 ? { ...prev, index: prev.index - 1 } : prev));
-  }, []);
-
-  const redoOnce = useCallback(() => {
-    setHist(prev =>
-      prev.index < prev.stack.length - 1 ? { ...prev, index: prev.index + 1 } : prev
-    );
-  }, []);
+  // Formatting ops: immediate content change for toolbar operations
+  const handleFormattingChange = (newContent: string) => {
+    setMarkdownContent(newContent);
+  };
 
   const fetchPost = useCallback(async () => {
     try {
@@ -206,9 +179,6 @@ export default function EditPostPage() {
       if (post.tags) {
         setPostTags(post.tags)
       }
-      
-      // Initialize history with the initial content
-      setHist({ stack: [initialContent], index: 0 })
     } catch (error) {
       console.error('Error fetching post:', error)
       setError('Failed to load post')
@@ -222,78 +192,6 @@ export default function EditPostPage() {
       fetchPost()
     }
   }, [postId, fetchPost])
-
-  // Whenever the history pointer or stack changes, reflect into the textarea
-  useEffect(() => {
-    const newContent = hist.stack[hist.index] ?? '';
-    
-    // Store current cursor position and scroll position
-    const textarea = textareaRef.current;
-    const currentCursorStart = textarea?.selectionStart ?? 0;
-    const currentCursorEnd = textarea?.selectionEnd ?? 0;
-    const currentScrollTop = textarea?.scrollTop ?? 0;
-    
-    setMarkdownContent(newContent);
-    
-    // Restore cursor and scroll position after content update
-    if (textarea) {
-      setTimeout(() => {
-        // Clamp cursor position to the new content length
-        const maxPosition = newContent.length;
-        const newStart = Math.min(currentCursorStart, maxPosition);
-        const newEnd = Math.min(currentCursorEnd, maxPosition);
-        
-        textarea.setSelectionRange(newStart, newEnd);
-        textarea.scrollTop = currentScrollTop;
-      }, 0);
-    }
-  }, [hist.index, hist.stack]);
-
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (historyTimerRef.current) {
-        clearTimeout(historyTimerRef.current)
-      }
-    }
-  }, [])
-
-  // Typing: debounce "push to history"
-  const handleContentChange = (newContent: string) => {
-    setMarkdownContent(newContent);
-
-    if (historyTimerRef.current) clearTimeout(historyTimerRef.current);
-    historyTimerRef.current = setTimeout(() => {
-      pushHistory(newContent);
-    }, 500); // group bursts of typing
-  };
-
-  // Formatting ops: push immediately (no debounce)
-  const handleFormattingChange = (newContent: string) => {
-    if (historyTimerRef.current) {
-      clearTimeout(historyTimerRef.current);
-      historyTimerRef.current = null;
-    }
-    setMarkdownContent(newContent);
-    pushHistory(newContent);
-  };
-
-  // Undo / Redo: do NOT push; just move the pointer
-  const handleUndo = () => undoOnce();
-  const handleRedo = () => redoOnce();
-
-  // Buttons' availability
-  const canUndo = hist.index > 0;
-  const canRedo = hist.index < hist.stack.length - 1;
-
-  // Clean up timer
-  useEffect(() => {
-    return () => {
-      if (historyTimerRef.current) {
-        clearTimeout(historyTimerRef.current);
-      }
-    };
-  }, []);
 
   // Initialize hooks
   const { renderLatex: renderLatexHook } = useUtilityFunctions()
@@ -1165,8 +1063,23 @@ export default function EditPostPage() {
     
     const { value, selectionStart, selectionEnd } = textarea
     
-    if (selectionStart === selectionEnd) {
-      // No selection - just add 4 spaces at cursor position
+    // Always work with full lines, even for cursor-only selections
+    const beforeSelection = value.substring(0, selectionStart)
+    const afterSelection = value.substring(selectionEnd)
+    
+    // Find the start of the first selected line
+    const firstLineStart = beforeSelection.lastIndexOf('\n') + 1
+    
+    // Find the end of the last selected line
+    const nextNewlineIndex = afterSelection.indexOf('\n')
+    const actualLastLineEnd = nextNewlineIndex === -1 ? value.length : selectionEnd + nextNewlineIndex
+    
+    // Get the full text of all lines that contain the selection
+    const fullSelectedText = value.substring(firstLineStart, actualLastLineEnd)
+    const lines = fullSelectedText.split('\n')
+    
+    if (selectionStart === selectionEnd && lines.length === 1 && !lines[0].trim()) {
+      // Special case: cursor on empty line, just add 4 spaces
       const newValue = 
         value.substring(0, selectionStart) + 
         '    ' + 
@@ -1174,57 +1087,51 @@ export default function EditPostPage() {
       
       setMarkdownContent(newValue)
       
-      // Move cursor after the inserted spaces
       setTimeout(() => {
         textarea.setSelectionRange(selectionStart + 4, selectionStart + 4)
       }, 0)
+      return
+    }
+    
+    // Add 4 spaces to each line and renumber ordered lists
+    let currentNumber = 1
+    
+    const indentedLines = lines.map((line) => {
+      const indentedLine = '    ' + line
+      
+      // Check if this is an ordered list item after indentation
+      const orderedListMatch = indentedLine.match(/^(\s*)(\d+)\.\s+(.*)$/)
+      if (orderedListMatch) {
+        const [, spaces, , content] = orderedListMatch
+        // Renumber starting from 1 for nested ordered lists
+        const renumberedLine = `${spaces}${currentNumber}. ${content}`
+        currentNumber++
+        return renumberedLine
+      }
+      
+      return indentedLine
+    })
+    
+    const indentedText = indentedLines.join('\n')
+    
+    // Build the new content
+    const newValue = 
+      value.substring(0, firstLineStart) + 
+      indentedText + 
+      value.substring(actualLastLineEnd)
+    
+    setMarkdownContent(newValue)
+    
+    // Calculate new selection positions
+    if (selectionStart === selectionEnd) {
+      // Cursor was on a line - keep cursor position but account for added spaces
+      const cursorOffsetInLine = selectionStart - firstLineStart
+      const newCursorPos = firstLineStart + 4 + cursorOffsetInLine
+      setTimeout(() => {
+        textarea.setSelectionRange(newCursorPos, newCursorPos)
+      }, 0)
     } else {
-      // Selection exists - indent all selected lines and renumber ordered lists
-      const beforeSelection = value.substring(0, selectionStart)
-      const selectedText = value.substring(selectionStart, selectionEnd)
-      const afterSelection = value.substring(selectionEnd)
-      
-      // Find the start of the first selected line
-      const firstLineStart = beforeSelection.lastIndexOf('\n') + 1
-      
-      // Find the end of the last selected line  
-      const lastLineEnd = selectionEnd + afterSelection.indexOf('\n')
-      const actualLastLineEnd = lastLineEnd === selectionEnd - 1 ? value.length : lastLineEnd
-      
-      // Get the full text of all lines that contain the selection
-      const fullSelectedText = value.substring(firstLineStart, actualLastLineEnd)
-      const lines = fullSelectedText.split('\n')
-      
-      // Add 4 spaces to each line and renumber ordered lists
-      let currentNumber = 1
-      
-      const indentedLines = lines.map((line) => {
-        const indentedLine = '    ' + line
-        
-        // Check if this is an ordered list item after indentation
-        const orderedListMatch = indentedLine.match(/^(\s*)(\d+)\.\s+(.*)$/)
-        if (orderedListMatch) {
-          const [, spaces, , content] = orderedListMatch
-          // Renumber starting from 1 for nested ordered lists
-          const renumberedLine = `${spaces}${currentNumber}. ${content}`
-          currentNumber++
-          return renumberedLine
-        }
-        
-        return indentedLine
-      })
-      
-      const indentedText = indentedLines.join('\n')
-      
-      // Build the new content
-      const newValue = 
-        value.substring(0, firstLineStart) + 
-        indentedText + 
-        value.substring(actualLastLineEnd)
-      
-      setMarkdownContent(newValue)
-      
-      // Calculate new selection positions
+      // Selection existed - maintain selection but account for added spaces
       const spacesAdded = lines.length * 4
       const newSelectionStart = selectionStart + 4 // First line gets 4 spaces
       const newSelectionEnd = selectionEnd + spacesAdded
@@ -1241,15 +1148,27 @@ export default function EditPostPage() {
     
     const { value, selectionStart, selectionEnd } = textarea
     
-    if (selectionStart === selectionEnd) {
-      // No selection - remove up to 4 spaces before cursor
-      const beforeCursor = value.substring(0, selectionStart)
-      const afterCursor = value.substring(selectionStart)
-      
-      // Count how many spaces to remove (up to 4, from the end of beforeCursor)
+    // Always work with full lines, even for cursor-only selections
+    const beforeSelection = value.substring(0, selectionStart)
+    const afterSelection = value.substring(selectionEnd)
+    
+    // Find the start of the first selected line
+    const firstLineStart = beforeSelection.lastIndexOf('\n') + 1
+    
+    // Find the end of the last selected line
+    const nextNewlineIndex = afterSelection.indexOf('\n')
+    const actualLastLineEnd = nextNewlineIndex === -1 ? value.length : selectionEnd + nextNewlineIndex
+    
+    // Get the full text of all lines that contain the selection
+    const fullSelectedText = value.substring(firstLineStart, actualLastLineEnd)
+    const lines = fullSelectedText.split('\n')
+    
+    if (selectionStart === selectionEnd && lines.length === 1 && lines[0].trim() && lines[0].search(/\S/) < 4) {
+      // Special case: cursor on line with less than 4 leading spaces, remove what we can
+      const line = lines[0]
       let spacesToRemove = 0
-      for (let i = beforeCursor.length - 1; i >= 0 && spacesToRemove < 4; i--) {
-        if (beforeCursor[i] === ' ') {
+      for (let i = 0; i < Math.min(4, line.length); i++) {
+        if (line[i] === ' ') {
           spacesToRemove++
         } else {
           break
@@ -1257,100 +1176,98 @@ export default function EditPostPage() {
       }
       
       if (spacesToRemove > 0) {
+        const cursorOffsetInLine = selectionStart - firstLineStart
+        const newLine = line.substring(spacesToRemove)
         const newValue = 
-          beforeCursor.substring(0, beforeCursor.length - spacesToRemove) + 
-          afterCursor
+          value.substring(0, firstLineStart) + 
+          newLine + 
+          value.substring(actualLastLineEnd)
         
         setMarkdownContent(newValue)
         
-        // Move cursor back by the number of removed spaces
+        const newCursorPos = firstLineStart + Math.max(0, cursorOffsetInLine - spacesToRemove)
         setTimeout(() => {
-          const newCursorPos = selectionStart - spacesToRemove
           textarea.setSelectionRange(newCursorPos, newCursorPos)
         }, 0)
       }
-    } else {
-      // Selection exists - unindent all selected lines and renumber ordered lists
-      const beforeSelection = value.substring(0, selectionStart)
-      const afterSelection = value.substring(selectionEnd)
-      
-      // Find the start of the first selected line
-      const firstLineStart = beforeSelection.lastIndexOf('\n') + 1
-      
-      // Find the end of the last selected line
-      const lastLineEnd = selectionEnd + afterSelection.indexOf('\n')
-      const actualLastLineEnd = lastLineEnd === selectionEnd - 1 ? value.length : lastLineEnd
-      
-      // Get the full text of all lines that contain the selection
-      const fullSelectedText = value.substring(firstLineStart, actualLastLineEnd)
-      const lines = fullSelectedText.split('\n')
-      
-      // Find the highest number in the parent list context to continue numbering
-      let nextNumber = 1
-      const beforeLines = beforeSelection.split('\n')
-      for (let i = beforeLines.length - 1; i >= 0; i--) {
-        const line = beforeLines[i]
-        // Look for ordered list items at the same indentation level (no extra spaces after unindenting)
-        const listMatch = line.match(/^(\s*)(\d+)\.\s+/)
-        if (listMatch) {
-          const [, spaces] = listMatch
-          // After unindenting, we want to match items that will be at the same level
-          // We need to check if this is at the target indentation level
-          const targetIndent = lines[0] ? lines[0].search(/\S/) - 4 : 0 // Remove 4 spaces from first line
-          if (spaces.length === Math.max(0, targetIndent)) {
-            nextNumber = parseInt(listMatch[2]) + 1
-            break
-          }
+      return
+    }
+    
+    // Find the highest number in the parent list context to continue numbering
+    let nextNumber = 1
+    const beforeLines = beforeSelection.split('\n')
+    for (let i = beforeLines.length - 1; i >= 0; i--) {
+      const line = beforeLines[i]
+      // Look for ordered list items at the same indentation level (no extra spaces after unindenting)
+      const listMatch = line.match(/^(\s*)(\d+)\.\s+/)
+      if (listMatch) {
+        const [, spaces] = listMatch
+        // After unindenting, we want to match items that will be at the same level
+        // We need to check if this is at the target indentation level
+        const targetIndent = lines[0] ? lines[0].search(/\S/) - 4 : 0 // Remove 4 spaces from first line
+        if (spaces.length === Math.max(0, targetIndent)) {
+          nextNumber = parseInt(listMatch[2]) + 1
+          break
+        }
+      }
+    }
+    
+    // Remove up to 4 spaces from each line and renumber ordered lists
+    let totalRemovedSpaces = 0
+    let firstLineRemovedSpaces = 0
+    let currentNumber = nextNumber
+    
+    const unindentedLines = lines.map((line: string, index: number) => {
+      // Count leading spaces (up to 4)
+      let spacesToRemove = 0
+      for (let i = 0; i < Math.min(4, line.length); i++) {
+        if (line[i] === ' ') {
+          spacesToRemove++
+        } else {
+          break
         }
       }
       
-      // Remove up to 4 spaces from each line and renumber ordered lists
-      let totalRemovedSpaces = 0
-      let firstLineRemovedSpaces = 0
-      let currentNumber = nextNumber
+      if (index === 0) {
+        firstLineRemovedSpaces = spacesToRemove
+      }
+      totalRemovedSpaces += spacesToRemove
       
-      const unindentedLines = lines.map((line, index) => {
-        // Count leading spaces (up to 4)
-        let spacesToRemove = 0
-        for (let i = 0; i < Math.min(4, line.length); i++) {
-          if (line[i] === ' ') {
-            spacesToRemove++
-          } else {
-            break
-          }
-        }
-        
-        if (index === 0) {
-          firstLineRemovedSpaces = spacesToRemove
-        }
-        totalRemovedSpaces += spacesToRemove
-        
-        const unindentedLine = line.substring(spacesToRemove)
-        
-        // Check if this is an ordered list item after unindenting
-        const orderedListMatch = unindentedLine.match(/^(\s*)(\d+)\.\s+(.*)$/)
-        if (orderedListMatch) {
-          const [, spaces, , content] = orderedListMatch
-          // Renumber to continue the parent list sequence
-          const renumberedLine = `${spaces}${currentNumber}. ${content}`
-          currentNumber++
-          return renumberedLine
-        }
-        
-        return unindentedLine
-      })
+      const unindentedLine = line.substring(spacesToRemove)
       
-      const unindentedText = unindentedLines.join('\n')
+      // Check if this is an ordered list item after unindenting
+      const orderedListMatch = unindentedLine.match(/^(\s*)(\d+)\.\s+(.*)$/)
+      if (orderedListMatch) {
+        const [, spaces, , content] = orderedListMatch
+        // Renumber to continue the parent list sequence
+        const renumberedLine = `${spaces}${currentNumber}. ${content}`
+        currentNumber++
+        return renumberedLine
+      }
       
-      // Build the new content
-      const newValue = 
-        value.substring(0, firstLineStart) + 
-        unindentedText + 
-        value.substring(actualLastLineEnd)
-      
-      setMarkdownContent(newValue)
-      
-      // Calculate new cursor positions
+      return unindentedLine
+    })
+    
+    const unindentedText = unindentedLines.join('\n')
+    
+    // Build the new content
+    const newValue = 
+      value.substring(0, firstLineStart) + 
+      unindentedText + 
+      value.substring(actualLastLineEnd)
+    
+    setMarkdownContent(newValue)
+    
+    // Calculate new cursor positions
+    if (selectionStart === selectionEnd) {
+      // Cursor was on a line - keep cursor position but account for removed spaces
+      const cursorOffsetInLine = selectionStart - firstLineStart
+      const newCursorPos = firstLineStart + Math.max(0, cursorOffsetInLine - firstLineRemovedSpaces)
+      setTimeout(() => {
+        textarea.setSelectionRange(newCursorPos, newCursorPos)
+      }, 0)
+    } else {
+      // Selection existed - maintain selection but account for removed spaces
       const newSelectionStart = Math.max(firstLineStart, selectionStart - firstLineRemovedSpaces)
       const newSelectionEnd = selectionEnd - totalRemovedSpaces
       
@@ -1385,8 +1302,6 @@ export default function EditPostPage() {
     cancelColor,
     applyBold,
     applyItalics,
-    handleUndo,
-    handleRedo,
     handleSave,
     handleTab,
     handleShiftTab
@@ -1567,31 +1482,6 @@ export default function EditPostPage() {
             
             {/* Center toolbar controls */}
             <div className="flex items-center space-x-1">
-            {/* File Operations */}
-            <button 
-              onClick={handleUndo}
-              disabled={!canUndo}
-              className={`toolbar-button rounded ${
-                canUndo 
-                  ? 'text-gray-700 hover:bg-gray-100' 
-                  : 'text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              Undo
-            </button>
-            <button 
-              onClick={handleRedo}
-              disabled={!canRedo}
-              className={`toolbar-button rounded ${
-                canRedo 
-                  ? 'text-gray-700 hover:bg-gray-100' 
-                  : 'text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              Redo
-            </button>
-            <div className="w-px h-6 bg-gray-300 mx-2"></div>
-            
             {/* Text Formatting */}
             <div className="relative">
               <button 

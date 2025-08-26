@@ -34,8 +34,6 @@ interface KeyboardHandlersParams {
   // Optional main editor handlers
   applyBold?: () => void
   applyItalics?: () => void
-  handleUndo?: () => void
-  handleRedo?: () => void
   handleSave?: () => void
   handleTab?: () => void
   handleShiftTab?: () => void
@@ -49,7 +47,7 @@ export const useKeyboardHandlers = (params: KeyboardHandlersParams) => {
     linkText, linkUrl, insertLink, cancelLink,
     footnoteText, insertFootnote, cancelFootnote,
     selectedColor, applyColor, cancelColor,
-    applyBold, applyItalics, handleUndo, handleRedo, handleSave, handleTab, handleShiftTab
+    applyBold, applyItalics, handleSave, handleTab, handleShiftTab
   } = params
 
   // Handle keyboard shortcuts in image modal
@@ -152,28 +150,6 @@ export const useKeyboardHandlers = (params: KeyboardHandlersParams) => {
             applyItalics()
           }
           break
-        case 'z':
-          if (e.shiftKey) {
-            // Ctrl+Shift+Z = Redo
-            if (handleRedo) {
-              e.preventDefault()
-              handleRedo()
-            }
-          } else {
-            // Ctrl+Z = Undo
-            if (handleUndo) {
-              e.preventDefault()
-              handleUndo()
-            }
-          }
-          break
-        case 'y':
-          // Ctrl+Y = Redo (alternative)
-          if (handleRedo) {
-            e.preventDefault()
-            handleRedo()
-          }
-          break
         case 's':
           // Ctrl+S = Save
           if (handleSave) {
@@ -186,7 +162,7 @@ export const useKeyboardHandlers = (params: KeyboardHandlersParams) => {
           break
       }
     }
-  }, [applyBold, applyItalics, handleUndo, handleRedo, handleSave, handleTab, handleShiftTab])
+  }, [applyBold, applyItalics, handleSave, handleTab, handleShiftTab])
 
   return {
     handleImageModalKeyDown,

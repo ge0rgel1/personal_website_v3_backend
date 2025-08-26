@@ -1,8 +1,3 @@
-export interface HistoryState {
-  stack: string[]
-  index: number
-}
-
 export type SaveStatus = 'idle' | 'saved' | 'error'
 
 export interface EditorState {
